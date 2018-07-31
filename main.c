@@ -16,11 +16,6 @@
  *  @bug No known bugs currently.
  */
 
-// Includes
-#include <stdio.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
 #include "MidiInfo.h"
 
 // Main entrypoint
