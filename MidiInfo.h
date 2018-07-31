@@ -5,8 +5,9 @@
  *  needed to parse files in the MIDI file format
  *
  *  @author Darren Eckert
- *  @version 0.1
+ *  @version 0.2
  *  @bug No known bugs currently.
+ *  @todo Read track event data
  */
 
 // Includes
@@ -17,6 +18,26 @@
 
 #ifndef MIDIINFO_H_
 #define MIDIINFO_H_
+
+/// @brief MIDI Files must start with "MThd"
+#ifndef MIDI_HEADER_ID
+#define MIDI_HEADER_ID "MThd"
+#endif
+
+/// @brief MIDI headers must be 6 bytes in size
+#ifndef MIDI_HEADER_CHUNK_SIZE
+#define MIDI_HEADER_CHUNK_SIZE 6
+#endif
+
+/// @brief MIDI tracks must start with "MTrk"
+#ifndef MIDI_TRACK_ID
+#define MIDI_TRACK_ID "MTrk"
+#endif
+
+/// @brief Microseconds Per Minute
+#ifndef MS_PER_MIN
+#define MS_PER_MIN 60000000
+#endif
 
 // Data Structures
 /** @struct MidiHeader
@@ -64,5 +85,7 @@ int16_t swapInt16(int16_t val);
 uint32_t swapUInt32(uint32_t val);
 int32_t swapInt32(int32_t val);
 unsigned long readVarLen(FILE *f);
+struct MidiHeader readMidiChunk(FILE *f);
+struct TrackHeader readTrackChunk(FILE *f);
 
 #endif

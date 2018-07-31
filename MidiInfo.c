@@ -5,15 +5,18 @@
  *  needed to parse files in the MIDI file format
  *
  *  @author Darren Eckert
- *  @version 0.1
+ *  @version 0.2
  *  @bug No known bugs currently.
+ *  @todo Read track event data
  */
 
+#ifndef MIDIINFO_H_
 #include "MidiInfo.h"
+#endif
 
-#ifndef MIDI_TYPES_H
-#define MIDI_TYES_H
+#ifndef MIDI_INSTRUMENTS
 #define MIDI_INSTRUMENTS 128
+#endif
 
 // Standard MIDI instrument names
 char *instrTable[MIDI_INSTRUMENTS] = {
@@ -34,27 +37,6 @@ char *instrTable[MIDI_INSTRUMENTS] = {
     "Bagpipes", "Fiddle", "Shanai", "Tinkle Bell", "Agogo", "Steel Drums", "Woodblock", "Taiko Drum", "Melodic Tom",
     "Synth Drum", "Reverse Cymbal", "Guitar Fret Noise", "Breath Noise", "Seashore", "Bird Tweet", "Telephone Ring",
     "Helicopter", "Applause", "Gunshot"};
-#endif
-
-/// @brief MIDI Files must start with "MThd"
-#ifndef MIDI_HEADER_ID
-#define MIDI_HEADER_ID "MThd"
-#endif
-
-/// @brief MIDI headers must be 6 bytes in size
-#ifndef MIDI_HEADER_CHUNK_SIZE
-#define MIDI_HEADER_CHUNK_SIZE 6
-#endif
-
-/// @brief MIDI tracks must start with "MTrk"
-#ifndef MIDI_TRACK_ID
-#define MIDI_TRACK_ID "MTrk"
-#endif
-
-/// @brief Microseconds Per Minute
-#ifndef MS_PER_MIN
-#define MS_PER_MIN 60000000
-#endif
 
 /** @fn int intPow(int base, int exp)
  * @brief Integer Power of function
@@ -183,4 +165,81 @@ unsigned long readVarLen(FILE *f)
         } while (c & 0x80);
     }
     return (val);
+}
+
+/** @fn struct MidiHeader readMidiChunk(FILE *f)
+ *  @brief Read the MIDI file header
+ *
+ * This function reads the file header chunk from the supplied file.\n
+ * Data values are stores most significant byte first (MSB).\n
+ * The header chunk has the following format:\n
+ * Chunk Type: 4 bytes, must be "MThd"\n
+ * Length: 32bits, must be 6\n
+ * Data: 3 16bit words:
+ * - Format: 0, 1 or 2
+ * - Number of tracks: for format 0 this must be 1
+ * - Time division:  format for delta times
+ *    + if bit 15 is a zero, the bits 14 thru 0 represent the number of
+ *      delta-time "ticks" which make up a quarter-note.
+ *    + If bit 15 is a one, delta-times in a file correspond to subdivisions
+ *      of a second, in a way consistent with SMPTE and MIDI time code.\n
+ *      Bits 14 thru 8 contain one of the four values -24, -25, -29, or -30,
+ *      corresponding to the four standard SMPTE and MIDI time code formats\n
+ *      (-29 corresponds to 30 drop frame), and represents the number of
+ *      frames per second. These negative numbers are stored in two's complement form.
+ *
+ * @param f: The file to read from
+ * @return struct MidiHeader containing the header chunk data
+ */
+struct MidiHeader readMidiChunk(FILE *f)
+{
+    char cChunkType[5];
+    unsigned int uLength = 0;
+    unsigned short uFormat = 0, uNumTracks = 0;
+    short sTimeDiv = 0;
+    struct MidiHeader midiHead;
+
+    fread(&cChunkType, sizeof(char[4]), 1, f);
+    cChunkType[4] = '\0';
+    fread(&uLength, sizeof(uLength), 1, f);
+    fread(&uFormat, sizeof(uFormat), 1, f);
+    fread(&uNumTracks, sizeof(uNumTracks), 1, f);
+    fread(&sTimeDiv, sizeof(sTimeDiv), 1, f);
+
+    strcpy(midiHead.cChunkType, cChunkType);
+
+    // Correct endianess
+    midiHead.uLength = swapUInt32(uLength);
+    midiHead.uFormat = swapUInt16(uFormat);
+    midiHead.uNumTracks = swapUInt16(uNumTracks);
+    midiHead.sTimeDiv = swapUInt16(sTimeDiv);
+
+    return midiHead;
+}
+
+/** @fn struct TrackHeader readTrackChunk(FILE *f)
+ *  @brief Read the header chunk for a track
+ *
+ *  This function will read the header chunk for a track from the given file\n
+ *  A track chunk has the following format:
+ *  Chunk TypeL 4 bytes, must be "MTrk"\n
+ *  Length : 32 bits\n
+ *
+ *  @param f: The file to read from
+ *  @return struct TrackHeader containing the header chunk data
+ */
+struct TrackHeader readTrackChunk(FILE *f)
+{
+    struct TrackHeader trackHead;
+    char cChunkType[5];
+    unsigned int uLength = 0;
+
+    fread(&cChunkType, sizeof(char[4]), 1, f);
+    cChunkType[4] = '\0';
+    fread(&uLength, sizeof(uLength), 1, f);
+
+    strcpy(trackHead.cChunkType, cChunkType);
+    trackHead.uLength = swapUInt32(uLength);
+
+    return trackHead;
 }
