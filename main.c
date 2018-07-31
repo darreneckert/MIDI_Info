@@ -30,7 +30,7 @@ int main(int argc, char **argv)
 	struct MidiHeader midiHead;
 	struct TrackHeader trackHead;
 	short val, fps, ticks;
-	unsigned char *cBuffer;
+	// unsigned char *cBuffer;
 	int i;
 
 	// Usage check
@@ -111,12 +111,12 @@ int main(int argc, char **argv)
 			fclose(fMIDI);
 			return 1;
 		}
-		/*
+		//*
 		printf("   Found track, event data is %d bytes long.\n", trackHead.uLength);
 		readTrackEvents(fMIDI);
 		printf("   End of track\n");
-		/ */
-		//*
+		// * /
+		/*
 		printf("TODO: read events , skip them for now\n");
 		cBuffer = (unsigned char *)malloc(trackHead.uLength);
 		if (cBuffer == NULL)

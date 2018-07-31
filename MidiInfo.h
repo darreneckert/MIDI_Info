@@ -85,7 +85,35 @@ int16_t swapInt16(int16_t val);
 uint32_t swapUInt32(uint32_t val);
 int32_t swapInt32(int32_t val);
 unsigned long readVarLen(FILE *f);
+
 struct MidiHeader readMidiChunk(FILE *f);
 struct TrackHeader readTrackChunk(FILE *f);
+void readTrackEvents(FILE *f);
+
+// MIDI Events
+void readMidiEvent(FILE *f, unsigned char eType, unsigned char channel);
+void noteOff(FILE *f, unsigned char channel);
+void noteOn(FILE *f, unsigned char channel);
+void noteAftertouch(FILE *f, unsigned char channel);
+void controller(FILE *f, unsigned char channel);
+void programChange(FILE *f, unsigned char channel);
+void channelAftertouch(FILE *f, unsigned char channel);
+void pitchBend(FILE *f, unsigned char channel);
+
+// Neta Events
+void readMetaEvent(FILE *f, unsigned short eType);
+void seqNumEvent(FILE *f, int len);
+void textEvent(FILE *f, unsigned short type, int len);
+void channelPrefixEvent(FILE *f);
+void portPrefixEvent(FILE *f);
+void tempoEvent(FILE *f);
+void SMPTEOffsetEvent(FILE *f, int len);
+void timeSigEvent(FILE *f);
+void keySigEvent(FILE *f);
+void SSMEvent(FILE *f, int len);
+void unknownEvent(FILE *f, int len);
+
+// System Events
+void readSysExEvent(FILE *f);
 
 #endif

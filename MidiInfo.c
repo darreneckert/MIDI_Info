@@ -243,3 +243,480 @@ struct TrackHeader readTrackChunk(FILE *f)
 
     return trackHead;
 }
+
+void noteOff(FILE *f, unsigned char channel)
+{
+    unsigned char cNote, cVelocity;
+
+    fread(&cNote, 1, 1, f);
+    fread(&cVelocity, 1, 1, f);
+    printf("Note Off Event - Channel %d, Note %d, Velocity %d\n", channel, cNote, cVelocity);
+    return;
+}
+
+void noteOn(FILE *f, unsigned char channel)
+{
+    unsigned char cNote, cVelocity;
+
+    fread(&cNote, 1, 1, f);
+    fread(&cVelocity, 1, 1, f);
+    printf("Note On Event - Channel %d, Note %d Velocity %d\n", channel, cNote, cVelocity);
+    return;
+}
+
+void noteAftertouch(FILE *f, unsigned char channel)
+{
+    unsigned char cNote, cATValue;
+
+    fread(&cNote, 1, 1, f);
+    fread(&cATValue, 1, 1, f);
+    printf("Note Aftertouch Event - Channel %d, Note %d, Aftertouch Value %d\n", channel, cNote, cATValue);
+    return;
+}
+
+void controller(FILE *f, unsigned char channel)
+{
+    unsigned char cCtrlrNum, cCtrlrVal;
+
+    fread(&cCtrlrNum, 1, 1, f);
+    fread(&cCtrlrVal, 1, 1, f);
+    printf("Controller Event - Channel %d, Controller Number %d, Controller Value %d\n", channel, cCtrlrNum, cCtrlrVal);
+    return;
+}
+
+void programChange(FILE *f, unsigned char channel)
+{
+    unsigned char cProgNum, cTemp;
+
+    fread(&cProgNum, 1, 1, f);
+    fread(&cTemp, 1, 1, f);
+    printf("Program Change Event - Channel %d, Program Number %d\n", channel, cProgNum);
+    return;
+}
+
+void channelAftertouch(FILE *f, unsigned char channel)
+{
+    unsigned char cATVal, cTemp;
+
+    fread(&cATVal, 1, 1, f);
+    fread(&cTemp, 1, 1, f);
+    printf("Channel Aftertouch Event - Channel %d, Aftertouch Value %d\n", channel, cATVal);
+    return;
+}
+
+void pitchBend(FILE *f, unsigned char channel)
+{
+    unsigned char cLSB, cMSB;
+    unsigned short uPitchBend = 0;
+
+    fread(&cLSB, 1, 1, f);
+    fread(&cMSB, 1, 1, f);
+    cLSB = (cLSB >> 1); // Only need 7 bits
+    cMSB = (cMSB >> 1); // Only need 7 bits
+    uPitchBend = ((uPitchBend + cMSB) << 8) + cLSB;
+    printf("Pitch Bend Event - Channel %d, Pitch Value LSB 0x%02x,  Pitch Value MSB 0x%02x, Pitch Value 0x%04x (%d)\n", channel, cLSB, cMSB, uPitchBend, uPitchBend);
+    return;
+}
+
+/** @fn void readMidiEvent(FILE *f, unsigned char channel)
+ *  @brief Reads a MIDI type event 
+ * 
+ *  This function will read a MIDI event from the given file\n
+ *  Valid events are:
+ *  - 0x8 Note Off
+ *  - 0x9 Note On
+ *  - 0xA Note Aftertouch
+ *  - 0xB Controller
+ *  - 0xC Program Change
+ *  - 0xD Channel Aftertouch
+ *  - 0xE Pitch Bend
+ * 
+ *  @param f: The file to read from
+ *  @param channel: the MIDI channel the event affects
+ *  @return No data is returned from the function currently
+ */
+void readMidiEvent(FILE *f, unsigned char eType, unsigned char channel)
+{
+    switch (eType)
+    {
+    case 0x8: // Note Off
+        noteOff(f, channel);
+        break;
+    case 0x9: // Note On
+        noteOn(f, channel);
+        break;
+    case 0xa: // Note Aftertouch
+        noteAftertouch(f, channel);
+        break;
+    case 0xb: // Controller
+        controller(f, channel);
+        break;
+    case 0xc: // Program Change
+        programChange(f, channel);
+        break;
+    case 0xd: // Channel Aftertouch
+        channelAftertouch(f, channel);
+        break;
+    case 0xe: // Pitch Bend
+        pitchBend(f, channel);
+        break;
+    }
+}
+
+void seqNumEvent(FILE *f, int len)
+{
+    unsigned char buffer[5];
+
+    fread(buffer, sizeof(char[4]), 1, f);
+    buffer[4] = '\0';
+    printf("Type is Sequence Number. Data is %s\n", buffer);
+    return;
+}
+
+void textEvent(FILE *f, unsigned short type, int len)
+{
+    unsigned char *buffer;
+
+    buffer = (unsigned char *)malloc(len + 1);
+    if (buffer == NULL)
+    {
+        perror("Error allocating memory to read Text\n");
+        fclose(f);
+        exit(1);
+    }
+    fread(buffer, len, 1, f);
+    buffer[len] = '\0';
+    printf("Type is ");
+    switch (type)
+    {
+    case 0x1:
+        printf("Text Event. ");
+        break;
+    case 0x2:
+        printf("Copyright Notice. ");
+        break;
+    case 0x3:
+        printf("Sequence/Track Name. ");
+        break;
+    case 0x4:
+        printf("Instrument Name. ");
+        break;
+    case 0x5:
+        printf("Lyric. ");
+        break;
+    case 0x6:
+        printf("Marker. ");
+        break;
+    case 0x7:
+        printf("Cue Point. ");
+        break;
+    }
+    printf("Data is %s\n", buffer);
+    free(buffer);
+    return;
+}
+
+void channelPrefixEvent(FILE *f)
+{
+    unsigned char channel;
+
+    fread(&channel, 1, 1, f);
+    printf("Type is Channel Prefix. Channel is %d\n", channel);
+    return;
+}
+
+void portPrefixEvent(FILE *f)
+{
+    unsigned char port;
+
+    fread(&port, 1, 1, f);
+    printf("Type is Port Prefix. Port is %d\n", port);
+    return;
+}
+
+void tempoEvent(FILE *f)
+{
+    unsigned int mspqn = 0, tempo = 0; // Microseconds per quarter-note, tempo (beats per minute)
+    int j = 0;
+
+    fread(&j, 1, 1, f);
+    mspqn = mspqn + j;
+    mspqn = (mspqn << 8);
+    fread(&j, 1, 1, f);
+    mspqn = mspqn + j;
+    mspqn = (mspqn << 8);
+    fread(&j, 1, 1, f);
+    mspqn = mspqn + j;
+
+    tempo = MS_PER_MIN / mspqn;
+
+    printf("Type is Set Tempo. Data is %d BPM\n", tempo);
+    return;
+}
+
+void SMPTEOffsetEvent(FILE *f, int len)
+{
+    unsigned char *buffer;
+
+    buffer = (unsigned char *)malloc(len + 1);
+    if (buffer == NULL)
+    {
+        perror("Error allocating memory to read SMPTE Offset data\n");
+        fclose(f);
+        exit(1);
+    }
+    fread(buffer, len, 1, f);
+    buffer[len] = '\0';
+    printf(" Type is SMPTE Offset. Data is %s\n", buffer);
+    free(buffer);
+    return;
+}
+
+void timeSigEvent(FILE *f)
+{
+    unsigned char buffer[4];
+    int j;
+
+    fread(buffer, 4, 1, f);
+    j = intPow(2, buffer[1]);
+    printf("Type is Time Signature. Signature is %d / %d %d %d\n", buffer[0], j, buffer[2], buffer[3]);
+    return;
+}
+
+void keySigEvent(FILE *f)
+{
+    int i, j;
+    unsigned char rec[2];
+
+    fread(&rec, 2, 1, f);
+    i = (signed char)rec[0];
+    j = (signed char)rec[1];
+    printf("Type is Key Signature. Signature is ");
+    switch (i)
+    {
+    case -7:
+        j ? printf("G Sharp ") : printf("C flat ");
+        break;
+    case -6:
+        j ? printf("E Flat ") : printf("G flat ");
+        break;
+    case -5:
+        j ? printf("B Flat ") : printf("D flat ");
+        break;
+    case -4:
+        j ? printf("F ") : printf("A flat ");
+        break;
+    case -3:
+        j ? printf("C ") : printf("E flat ");
+        break;
+    case -2:
+        j ? printf("G ") : printf("B Flat ");
+        break;
+    case -1:
+        j ? printf("D ") : printf("F ");
+        break;
+    case 0:
+        printf("C ");
+        break;
+    case 1:
+        j ? printf("E ") : printf("G ");
+        break;
+    case 2:
+        j ? printf("B ") : printf("D ");
+        break;
+    case 3:
+        j ? printf("F Sharp ") : printf("A ");
+        break;
+    case 4:
+        j ? printf("C Sharp ") : printf("E ");
+        break;
+    case 5:
+        j ? printf("G Sharp ") : printf("B ");
+        break;
+    case 6:
+        j ? printf("D Sharp ") : printf("F Sharp ");
+        break;
+    case 7:
+        j ? printf("B Flat ") : printf("C Sharp ");
+        break;
+    } // End switch (i)
+    j ? printf("Minor") : printf("Major\n");
+
+    return;
+}
+
+void SSMEvent(FILE *f, int len)
+{
+    unsigned char *buffer;
+
+    buffer = (unsigned char *)malloc(len + 1);
+    if (buffer == NULL)
+    {
+        perror("Error allocating memory to read Time Signature data\n");
+        fclose(f);
+        exit(1);
+    }
+    fread(buffer, sizeof(char) * len, 1, f);
+    buffer[len] = '\0';
+    printf("Type is Sequence Specific Meta Event. Data is %s\n", buffer);
+
+    free(buffer);
+    return;
+}
+
+void unknownEvent(FILE *f, int len)
+{
+    int i;
+    unsigned char c;
+
+    printf("Type is unknown, reading %d byte(s)\n", len);
+    for (i = 0; i < len; i++)
+    {
+        fread(&c, 1, 1, f);
+    }
+    return;
+}
+
+/** @fn void readMetaEvent(FILE *f, unsigned short eType)
+ *  @brief Reads a Meta type event.
+ * 
+ * This function reads a Meta event from the given file\n
+ * Valid event types are:
+ *  - 0x00 Sequence Number
+ *  - 0x01 Text Event
+ *  - 0x02 Copyright Notice
+ *  - 0x03 Sequence/Track Name
+ *  - 0x04 Instrument Name
+ *  - 0x05 Lyric
+ *  - 0x06 Marker
+ *  - 0x07 Cue Point
+ *  - 0x20 MIDI Channel Prefix
+ *  - 0x21 MIDI Port Prefix
+ *  - 0x2F End of Track
+ *  - 0x51 Tempo
+ *  - 0x54 SMPTE Offset
+ *  - 0x58 Time Signature
+ *  - 0x59 Key Signature
+ *  - 0x7F Sequence Specific Meta Event
+ * 
+ * @paran f: The file to read from
+ * @param eType: The type of Meta Event to read
+ * @return No data is returned from this function currently
+ */
+void readMetaEvent(FILE *f, unsigned short eType)
+{
+    int len = 0;
+    fread(&len, 1, 1, f);
+    switch (eType)
+    {
+    case 0x0:
+        seqNumEvent(f, len);
+        break;
+    case 0x1:
+    case 0x2:
+    case 0x3:
+    case 0x4:
+    case 0x5:
+    case 0x6:
+    case 0x7:
+        textEvent(f, eType, len);
+        break;
+    case 0x20:
+        channelPrefixEvent(f);
+        break;
+    case 0x21:
+        portPrefixEvent(f);
+        break;
+    case 0x2f:
+        printf("End of track event\n");
+        break;
+    case 0x51:
+        tempoEvent(f);
+        break;
+    case 0x54:
+        SMPTEOffsetEvent(f, len);
+        break;
+    case 0x58:
+        timeSigEvent(f);
+        break;
+    case 0x59:
+        keySigEvent(f);
+        break;
+    case 0x7F:
+        SSMEvent(f, len);
+        break;
+    default:
+        unknownEvent(f, len);
+        break;
+    } // End switch (eType)
+    return;
+}
+
+/** @fn void readSysExEvent(FILE * f)
+ *  @brief Reads a System Exclusive type event
+ * 
+ *  This function reads a System Exclusive Event from teh given file\n
+ *   Valid event types are:
+ *  - 0xF0 Normal SysEx Event
+ *  - 0xF7 Divided SysEx Event
+ * 
+ *  @param f: The file to read from
+ * @return No data is reurned from this function currently
+ */
+void readSysExEvent(FILE *f) {}
+
+/** @fn void readTrackEvents(FILE *f)
+ *  @brief Reads  events for the current track
+ * 
+ * This function reads  all the events for teh current track from the given file\n
+ *  There are three types of events that can occur within a track:
+ *  - MIDI Events
+ *  - Meta Events
+ *  - System Exclusive Events
+ * 
+ *  @param f: The file to read from
+ *  @return No data is returned from this function currently
+ */
+void readTrackEvents(FILE *f)
+{
+    unsigned long deltaTime;
+    unsigned short eventID = 0, eventType = 0;
+    unsigned char cUpperByte, cLowerByte;
+
+    printf("      Begin Processing Track Chunk\n");
+
+    while (eventType != 0x2f)
+    {
+        deltaTime = readVarLen(f);
+        fread(&eventID, 1, 1, f);
+        cUpperByte = eventID >> 4;
+        cLowerByte = eventID & 0xf;
+        printf("         Delta time: 0x%02lx\n", deltaTime);
+        switch (cUpperByte)
+        {
+        case 0x8:
+        case 0x9:
+        case 0xA:
+        case 0xB:
+        case 0xC:
+        case 0xD:
+        case 0xE:
+            printf("         MIDI Event detected - ");
+            readMidiEvent(f, cUpperByte, cLowerByte);
+            break;
+        case 0xF:
+            if (cLowerByte == 0xF)
+            {
+                printf("         Meta Event detected - ");
+                fread(&eventType, 1, 1, f);
+                readMetaEvent(f, eventType);
+            }
+            else
+            {
+                printf("         SysExEvent detected - ");
+                readSysExEvent(f);
+            }
+            break;
+        } // End Switch
+    }     // End While
+}
