@@ -16,6 +16,7 @@
 #define MIDI_TYES_H
 #define MIDI_INSTRUMENTS 128
 
+// Standard MIDI instrument names
 char *instrTable[MIDI_INSTRUMENTS] = {
 	"Acoustic Grand Piano", "Bright Acoustic Piano", "Electric Grand Piano", "Honky Tonk Piano", "Electric Piano 1",
 	"Electric Piano 2", "Harpsichord", "Clavinet", "Celesta", "Glockenspiel", "Music Box", "Vibrahone", "Marimba",
@@ -33,8 +34,7 @@ char *instrTable[MIDI_INSTRUMENTS] = {
 	"FX 1", "FX 2", "FX 3", "FX 4", "FX 5", "FX 6", "FX 7", "FX 8", "Sitar", "Banjo", "Shamisen", "Koto", "Kalimba",
 	"Bagpipes", "Fiddle", "Shanai", "Tinkle Bell", "Agogo", "Steel Drums", "Woodblock", "Taiko Drum", "Melodic Tom",
 	"Synth Drum", "Reverse Cymbal", "Guitar Fret Noise", "Breath Noise", "Seashore", "Bird Tweet", "Telephone Ring",
-	"Helicopter", "Applause", "Gunshot" 
-};
+	"Helicopter", "Applause", "Gunshot"};
 #endif
 
 /// @brief MIDI Files must start with "MThd"
@@ -52,5 +52,175 @@ char *instrTable[MIDI_INSTRUMENTS] = {
 #define MIDI_TRACK_ID "MTrk"
 #endif
 
+/// @brief Microseconds Per Minute
+#ifndef MS_PER_MIN
+#define MS_PER_MIN 60000000
+#endif
+
+/** @struct MidiHeader
+ *  @brief MIDI File Header structure
+ *
+ * Chunk Type is 5 bytes, "MThd" + NULL terminator '\0',\n
+ * Length must be 6.\n
+ * Format type can be 0, 1 or 2.\n
+ * Number of tracks:
+ * - Format 0 can have one track only.
+ * - Format 1 can have multiple simultaneous tracks.
+ * - Format 2 can have multiple sequential tracks.\n
+ * Time division can be is one of two formats:
+ * - Ticks per quarter note.
+ * - Negative SMPTE format, e.g. -24 = 24fps, -30 = 30fps, plus number of ticks per frame.\n
+ */
+struct MidiHeader
+{
+	char cChunkType[5];
+	unsigned int uLength;
+	unsigned short uFormat, uNumTracks;
+	short sTimeDiv;
+
+	struct TrackHeader *trackHeaders;
+};
+
+/** @struct TrackHeader
+ * @brief Track Header Structure
+ *
+ * Header ID is 5 bytes, "MTrk" + NULL terminator '\0'.\n
+ * the NULL terminator is needed for strcmp() and printf()\n
+ * Track chunk size is the total number of bytes in the track\n
+ */
+struct TrackHeader
+{
+	char cChunkType[5];
+	unsigned int uLength;
+};
+
+/** @fn int intPow(int base, int exp)
+ * @brief Integer Power of function
+ *
+ * This function computes the power of in integer\n
+ * NOTE: Only works for positive exponents
+ *
+ * Code taken from https://stackoverflow.com/a/29787467
+ *
+ * @param base: The base of the function
+ * @param exp:  The exponent of the function
+ * @return Integer: base^exp
+ */
+int intPow(int base, int exp)
+{
+	int result = 1;
+	while (exp)
+	{
+		if (exp & 1)
+			result *= base;
+		exp /= 2;
+		base *= base;
+	}
+	return result;
+}
+
+// Endian swap functions.
+/** @fn uint16_t swapUInt16(uint16_t val)
+ * @brief Byte swap unsigned short
+ *
+ * Swaps bytes in an unsigned 16bit integer
+ *
+ * Code taken from https://stackoverflow.com/a/2637138
+ *
+ * @param val: unsigned 16bit integer containing 2 bytes to be swapped
+ * @return val: swapped bytes in an unsigned 16bit integer
+ */
+uint16_t swapUInt16(uint16_t val)
+{
+	return (val << 8) | (val >> 8);
+}
+
+/** @fn int16_t swapInt16(int16_t val)
+ *  @brief Byte swap short
+ *
+ * Swaps bytes in a signed 16bit integer
+ *
+ * Code taken from https://stackoverflow.com/a/2637138
+ *
+ * @param val: signed 16bit integer containing 2 bytes to be swapped
+ * @return val: swapped bytes in a signed 16bit integer
+ */
+int16_t swapInt16(int16_t val)
+{
+	return (val << 8) | ((val >> 8) & 0xFF);
+}
+
+/** @fn uint32_t swapUInt32(uint32_t val)
+ *  @brief Byte swap unsigned int
+ *
+ * Swaps bytes in an unsigned 32bit integer
+ *
+ * Code taken from https://stackoverflow.com/a/2637138
+ *
+ * @param val: unsigned 32bit integer containing 4 bytes to be swapped
+ * @return val: swapped bytes in an unsigned 32bit integer
+ */
+uint32_t swapUInt32(uint32_t val)
+{
+	val = ((val << 8) & 0xFF00FF00) | ((val >> 8) & 0xFF00FF);
+	return (val << 16) | (val >> 16);
+}
+
+/** @fn int32_t swapInt32(int32_t val)
+ @brief Byte swap int
+ *
+ * Swaps bytes in a signed 326bit integer
+ *
+ * Code taken from https://stackoverflow.com/a/2637138
+ *
+ * @param val: signed 32bit integer containing 4 bytes to be swapped
+ * @return val: swapped bytes in a signed 32bit integer
+ */
+int32_t swapInt32(int32_t val)
+{
+	val = ((val << 8) & 0xFF00FF00) | ((val >> 8) & 0xFF00FF);
+	return (val << 16) | ((val >> 16) & 0xFFFF);
+}
+
+/** @fn unsigned long readVarLen(FILE *f)
+ *  @brief Delta times can be stored in Variable-Length Quantity format
+ *
+ * Some numbers in MIDI Files are represented in a form called VARIABLE-LENGTH QUANTITY.\n
+ * These numbers are represented 7 bits per byte, most significant bits first.\n
+ * All bytes except the last have bit 7 set, and the last byte has bit 7 clear.\n
+ * If the number is between 0 and 127, it is thus represented exactly as one byte.
+ * Examples:\n
+ * Number (hex)	| Representation (hex)
+ * -----------: | :-------------------
+ * 00000000		| 00
+ * 00000040		| 40
+ * 0000007F		| 7F
+ * 00000080		| 81 00
+ * 00002000		| C0 00
+ * 00003FFF		| FF 7F
+ * 001FFFFF		| FF FF 7F
+ * 08000000		| C0 80 80 00
+ * 0FFFFFFF		| FF FF FF 7F
+ *
+ * Code and explanation taken from MIDI 1.0 Specification document available at https://www.midi.org
+ *
+ * @param f:  File to read from
+ * @return Unsigned Long: Variable-Length Quantity value
+ */
+unsigned long readVarLen(FILE *f)
+{
+	register unsigned long val;
+	register unsigned char c;
+
+	if ((val = getc(f)) & 0x80)
+	{
+		val &= 0x7F;
+		do
+		{
+			val = (val << 7) + ((c = getc(f)) & 0x7F);
+		} while (c & 0x80);
+	}
+	return (val);
+}
 
 #endif

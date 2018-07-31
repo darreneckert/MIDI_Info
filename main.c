@@ -23,18 +23,23 @@
 #include <string.h>
 #include "MidiInfo.h"
 
+// Main entrypoint
 int main(int argc, char **argv)
 {
 
 	// Variables
 	FILE *fMIDI = NULL;
+	struct MidiHeader midiHead;
+	struct TrackHeader trackHead;
 
+	// Usage check
 	if (argc != 2)
 	{
 		printf("Usage: %s filename\n", argv[0]);
 		return 0;
 	}
 
+	// Attempt to open file, exit with error if it fails
 	fMIDI = fopen(argv[1], "rb");
 	if (fMIDI == NULL)
 	{
@@ -42,6 +47,7 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
+	// Everything is done, close the file and exit
 	fclose(fMIDI);
 	return 0;
 }
